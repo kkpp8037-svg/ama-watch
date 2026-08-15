@@ -53,6 +53,13 @@ HEADERS = {
         "Chrome/124.0.0.0 Safari/537.36"
     ),
     "Accept-Language": "ja-JP,ja;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+}
+
+# 帶上地區/幣別 cookie,避免被導去「請選擇送貨地址」的過渡頁,盡量拿到真正的商品頁
+COOKIES = {
+    "i18n-prefs": "JPY",
+    "lc-acbjp": "ja_JP",
 }
 
 logging.basicConfig(
@@ -155,11 +162,22 @@ def check_product(product: dict, state: dict) -> dict:
     key = url
 
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp = requests.get(url, headers=HEADERS, cookies=COOKIES, timeout=15)
         if resp.status_code != 200:
             raise RuntimeError(f"HTTP {resp.status_code}")
 
-        is_amazon_seller, debug_snippet, in_stock = get_seller_and_stock(resp.text)
+        html = resp.text
+        title_match = re.search(r"<title[^>]*>(.*?)</title>", html, re.S)
+        page_title = title_match.group(1).strip() if title_match else "(無標題)"
+
+        is_amazon_seller, debug_snippet, in_stock = get_seller_and_stock(html)
+
+        if not debug_snippet:
+            # 完全抓不到任何候選文字,通常代表拿到的不是真正商品頁(可能被導去驗證頁/地區選擇頁)
+            log.warning(
+                f"{name}: 疑似未取得正常商品頁 | HTTP={resp.status_code} "
+                f"內容長度={len(html)} 頁面標題={page_title!r}"
+            )
 
         prev = state.get(key, {})
         was_amazon = prev.get("is_amazon_seller", False)
