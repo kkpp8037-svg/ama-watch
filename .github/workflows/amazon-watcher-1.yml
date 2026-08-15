@@ -1,0 +1,65 @@
+name: Amazon Watcher Relay 1
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 */6 * * *'   # 安全網,每 6 小時一次
+
+concurrency:
+  group: amazon-watcher-1
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run watcher (bounded loop, group 1)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TIME_BUDGET_SECONDS: "20400"
+          CHECK_INTERVAL_SECONDS: "60"
+          PRODUCTS_FILE: "products-1.json"
+          STATE_FILE: "watcher_state-1.json"
+          START_OFFSET_SECONDS: "0"    # 這組不用等,直接開始
+        run: python amazon_watcher.py
+
+      - name: Commit updated state
+        if: always()
+        run: |
+          git config user.name "amazon-watcher-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase origin ${{ github.ref_name }} || true
+          if [ -n "$(git status --porcelain watcher_state-1.json)" ]; then
+            git add watcher_state-1.json
+            git commit -m "chore: update watcher-1 state [skip ci]"
+            git push
+          else
+            echo "狀態檔沒有變化,不需要 commit"
+          fi
+
+      - name: Trigger next relay run
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.RELAY_PAT }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/amazon-watcher-1.yml/dispatches" \
+            -d "{\"ref\":\"${{ github.ref_name }}\"}"
