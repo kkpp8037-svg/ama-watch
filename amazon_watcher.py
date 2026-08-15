@@ -14,11 +14,15 @@ Amazon.co.jp 販売元監控腳本 — GitHub Actions 自我接力版
   TELEGRAM_CHAT_ID     Telegram chat_id(必填)
   TIME_BUDGET_SECONDS  這次執行最多跑幾秒(預設 20400 秒 = 5 小時 40 分)
   CHECK_INTERVAL_SECONDS  每輪檢查間隔秒數(預設 60)
+  PRODUCTS_FILE        要讀取的商品清單檔名(預設 products.json,可指定 products-1.json 等)
+  STATE_FILE           狀態記錄檔名(預設 watcher_state.json,建議跟 PRODUCTS_FILE 對應成組)
+  START_OFFSET_SECONDS 啟動後先等待幾秒才開始第一輪(用來跟其他 workflow 錯開請求時間,預設 0)
 """
 
 import json
 import os
 import random
+import re
 import time
 import logging
 from pathlib import Path
@@ -35,9 +39,10 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 TIME_BUDGET_SECONDS = int(os.environ.get("TIME_BUDGET_SECONDS", 20400))  # 5h40m
 CHECK_INTERVAL_SECONDS = int(os.environ.get("CHECK_INTERVAL_SECONDS", 60))
 JITTER_SECONDS = 15
+START_OFFSET_SECONDS = int(os.environ.get("START_OFFSET_SECONDS", 0))
 
-PRODUCTS_FILE = Path(__file__).parent / "products.json"
-STATE_FILE = Path(__file__).parent / "watcher_state.json"
+PRODUCTS_FILE = Path(__file__).parent / os.environ.get("PRODUCTS_FILE", "products.json")
+STATE_FILE = Path(__file__).parent / os.environ.get("STATE_FILE", "watcher_state.json")
 
 FAIL_ALERT_THRESHOLD = 5
 
@@ -95,27 +100,45 @@ def send_telegram(text: str) -> None:
 
 
 def get_seller_and_stock(html: str):
+    """
+    回傳 (is_amazon_seller, debug_snippet, in_stock)
+
+    Amazon.co.jp 頁面實際上有兩種常見格式,必須都涵蓋:
+    1. 句子式(常見於 id="merchant-info"):
+       「この商品は、Amazon.co.jpが販売および発送します。」
+       「この商品は、○○○が販売、Amazon.co.jpが発送します。」(混合出荷)
+    2. 表格式(常見於 id="tabular-buybox"):
+       「出荷元」「販売元」各自一列,標籤與數值分開,
+       不能用「抓到最後一筆」這種寫法,否則會抓到價格等其他列。
+    """
     soup = BeautifulSoup(html, "html.parser")
-    seller_text = None
+    candidates = []
 
     merchant_info = soup.find(id="merchant-info")
     if merchant_info:
-        seller_text = merchant_info.get_text(strip=True)
+        candidates.append(merchant_info.get_text(" ", strip=True))
 
-    if not seller_text:
-        table = soup.find(id="tabular-buybox")
-        if table:
-            for row in table.find_all("tr"):
-                label = row.find(class_="tabular-buybox-text-message")
-                if label:
-                    seller_text = label.get_text(strip=True)
+    tabular = soup.find(id="tabular-buybox")
+    if tabular:
+        for row in tabular.find_all("tr"):
+            row_text = row.get_text(" ", strip=True)
+            if "販売元" in row_text or "出荷元" in row_text:
+                candidates.append(row_text)
 
-    if not seller_text:
-        candidate = soup.find(string=lambda s: s and "販売元" in s)
-        if candidate:
-            parent = candidate.find_parent()
-            if parent:
-                seller_text = parent.get_text(strip=True)
+    # 保底:整個 buybox 區域的文字都納入候選,避免上面兩種 id 都抓不到
+    buybox = soup.find(id="buybox") or soup.find(id="rightCol") or soup.find(id="desktop_buybox_group_1")
+    if buybox:
+        candidates.append(buybox.get_text(" ", strip=True))
+
+    combined = " | ".join(candidates)
+    debug_snippet = combined[:400]
+
+    # 只有「販売元」明確是 Amazon.co.jp 才算數,出荷元不算(出荷元只是物流,販売元才是誰在賣)
+    is_amazon_seller = bool(
+        re.search(r"Amazon\.co\.jp\s*が\s*販売", combined)
+        or re.search(r"販売元\s*[:：]?\s*Amazon\.co\.jp", combined)
+        or re.search(r"販売元\s*Amazon\.co\.jp", combined)
+    )
 
     availability = soup.find(id="availability")
     in_stock = False
@@ -123,7 +146,7 @@ def get_seller_and_stock(html: str):
         avail_text = availability.get_text(strip=True)
         in_stock = "在庫あり" in avail_text or "在庫切れ" not in avail_text
 
-    return seller_text, in_stock
+    return is_amazon_seller, debug_snippet, in_stock
 
 
 def check_product(product: dict, state: dict) -> dict:
@@ -136,8 +159,7 @@ def check_product(product: dict, state: dict) -> dict:
         if resp.status_code != 200:
             raise RuntimeError(f"HTTP {resp.status_code}")
 
-        seller_text, in_stock = get_seller_and_stock(resp.text)
-        is_amazon_seller = bool(seller_text and "Amazon.co.jp" in seller_text)
+        is_amazon_seller, debug_snippet, in_stock = get_seller_and_stock(resp.text)
 
         prev = state.get(key, {})
         was_amazon = prev.get("is_amazon_seller", False)
@@ -152,12 +174,13 @@ def check_product(product: dict, state: dict) -> dict:
             send_telegram(msg)
             log.info(f"[通知已發送] {name}")
         else:
-            log.info(f"{name}: 販売元={seller_text!r}, 符合Amazon={is_amazon_seller}, 有庫存={in_stock}")
+            log.info(
+                f"{name}: 符合Amazon={is_amazon_seller}, 有庫存={in_stock} | 擷取片段: {debug_snippet!r}"
+            )
 
         state[key] = {
             "is_amazon_seller": is_amazon_seller,
             "in_stock": in_stock,
-            "seller_text": seller_text,
             "fail_count": 0,
             "last_checked": datetime.now().isoformat(),
         }
@@ -184,7 +207,12 @@ def main():
     if not products:
         return
 
-    log.info(f"本次執行時間預算: {TIME_BUDGET_SECONDS} 秒")
+    log.info(f"本次執行時間預算: {TIME_BUDGET_SECONDS} 秒,商品清單: {PRODUCTS_FILE.name}")
+
+    if START_OFFSET_SECONDS > 0:
+        log.info(f"錯開啟動,先等待 {START_OFFSET_SECONDS} 秒")
+        time.sleep(START_OFFSET_SECONDS)
+
     state = load_state()
     deadline = time.monotonic() + TIME_BUDGET_SECONDS
 
