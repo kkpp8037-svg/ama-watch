@@ -3,48 +3,48 @@
     "is_amazon_seller": false,
     "in_stock": false,
     "fail_count": 0,
-    "last_checked": "2026-08-16T06:44:49.174094"
+    "last_checked": "2026-08-16T12:25:28.758515"
   },
   "https://www.amazon.co.jp/dp/B0GWKWBXH3": {
     "is_amazon_seller": false,
     "in_stock": false,
     "fail_count": 0,
-    "last_checked": "2026-08-16T06:44:52.780418"
+    "last_checked": "2026-08-16T12:25:31.913059"
   },
   "https://www.amazon.co.jp/dp/B0FH4FD9NB": {
     "is_amazon_seller": false,
     "in_stock": false,
     "fail_count": 0,
-    "last_checked": "2026-08-16T06:44:55.475311"
+    "last_checked": "2026-08-16T12:25:35.927005"
   },
   "https://www.amazon.co.jp/dp/B0CV7D5B6K": {
     "is_amazon_seller": false,
     "in_stock": false,
     "fail_count": 0,
-    "last_checked": "2026-08-16T06:44:58.669175"
+    "last_checked": "2026-08-16T12:25:40.803653"
   },
   "https://www.amazon.co.jp/dp/B0GS4F6977": {
     "is_amazon_seller": false,
     "in_stock": false,
     "fail_count": 0,
-    "last_checked": "2026-08-16T06:45:01.694516"
+    "last_checked": "2026-08-16T12:25:43.114757"
   },
   "https://www.amazon.co.jp/dp/B0FCLJ67NK": {
     "is_amazon_seller": false,
-    "in_stock": false,
+    "in_stock": true,
     "fail_count": 0,
-    "last_checked": "2026-08-16T06:45:06.389161"
+    "last_checked": "2026-08-16T12:25:46.330600"
   },
   "https://www.amazon.co.jp/dp/B0GMFHY6ZV": {
     "is_amazon_seller": false,
     "in_stock": false,
     "fail_count": 0,
-    "last_checked": "2026-08-16T06:45:10.249274"
+    "last_checked": "2026-08-16T12:25:50.324271"
   },
   "https://www.amazon.co.jp/dp/B0H1B5QDJK": {
     "is_amazon_seller": false,
     "in_stock": false,
     "fail_count": 0,
-    "last_checked": "2026-08-16T06:45:14.388712"
+    "last_checked": "2026-08-16T12:25:54.296996"
   }
 }
