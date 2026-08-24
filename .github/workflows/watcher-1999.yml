@@ -1,0 +1,62 @@
+name: 1999.co.jp Watcher Relay
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '9 */6 * * *'   # 跟其他組再錯開幾分鐘
+
+concurrency:
+  group: watcher-1999
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run 1999.co.jp watcher (bounded loop)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TIME_BUDGET_SECONDS: "20400"
+          CHECK_INTERVAL_SECONDS: "45"
+        run: python watcher_1999.py
+
+      - name: Commit updated state
+        if: always()
+        run: |
+          git config user.name "watcher-1999-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git pull --rebase origin ${{ github.ref_name }} || true
+          if [ -n "$(git status --porcelain watcher_state_1999.json)" ]; then
+            git add watcher_state_1999.json
+            git commit -m "chore: update 1999.co.jp watcher state [skip ci]"
+            git push
+          else
+            echo "狀態檔沒有變化"
+          fi
+
+      - name: Trigger next relay run
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.RELAY_PAT }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/watcher-1999.yml/dispatches" \
+            -d "{\"ref\":\"${{ github.ref_name }}\"}"
