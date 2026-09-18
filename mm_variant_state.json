@@ -1,32 +1,32 @@
 {
   "https://mmtoyshop.com/item/Shopee6a3bdc265e88a": {
     "is_available": false,
-    "stock_qty": 0,
+    "stock_qty": null,
     "fail_count": 0,
-    "last_checked": "2026-09-17T22:27:59.582276+08:00"
+    "last_checked": "2026-09-18T22:03:44.528247+08:00"
   },
   "https://mmtoyshop.com/item/Shopee6a3bdbb22415e": {
     "is_available": false,
-    "stock_qty": 0,
+    "stock_qty": null,
     "fail_count": 0,
-    "last_checked": "2026-09-17T22:28:06.328440+08:00"
+    "last_checked": "2026-09-18T22:03:52.747093+08:00"
   },
   "https://mmtoyshop.com/item/Shopee6a3bdb7776072": {
     "is_available": false,
-    "stock_qty": 0,
+    "stock_qty": null,
     "fail_count": 0,
-    "last_checked": "2026-09-17T22:28:12.952557+08:00"
+    "last_checked": "2026-09-18T22:04:01.467290+08:00"
   },
   "https://mmtoyshop.com/item/Shopee6a3bdb4fe2bcb": {
     "is_available": false,
-    "stock_qty": 0,
+    "stock_qty": null,
     "fail_count": 0,
-    "last_checked": "2026-09-17T22:28:19.470642+08:00"
+    "last_checked": "2026-09-18T22:04:08.750758+08:00"
   },
   "https://mmtoyshop.com/item/Shopee6a4620509d97a": {
     "is_available": false,
-    "stock_qty": 0,
+    "stock_qty": null,
     "fail_count": 0,
-    "last_checked": "2026-09-17T22:28:28.182968+08:00"
+    "last_checked": "2026-09-18T22:04:16.373997+08:00"
   }
 }
